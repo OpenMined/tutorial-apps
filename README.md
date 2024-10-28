@@ -4,4 +4,4 @@ Central repository designed to host various tutorial applications, each maintain
 
 
 Apps List:
-- Basic Aggregator: Collects and summarizes public data from multiple data sites.
+- [Basic Aggregator](https://github.com/OpenMined/tutorial-apps/tree/basic_aggregator): Collects and summarizes public data from multiple data sites.
