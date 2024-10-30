@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import json
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class SimpleNN(nn.Module):
@@ -118,6 +119,33 @@ def save_aggregation_timestamp(datasite_path: Path) -> None:
         json.dump({"last_train": timestamp}, last_round_file)
 
 
+def evaluate_global_model(global_model: nn.Module, dataset_path: Path) -> float:
+    global_model.eval()
+
+    # load the saved mnist subset
+    images, labels = torch.load(str(dataset_path))
+
+    # create a tensordataset
+    dataset = TensorDataset(images, labels)
+
+    # create a dataloader for the dataset
+    data_loader = DataLoader(dataset, batch_size=64, shuffle=True)
+
+    # dataset = torch.load(str(dataset_path))
+    # data_loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=False)
+
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in data_loader:
+            outputs = global_model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    accuracy = 100 * correct / total
+    return accuracy
+
+
 if __name__ == "__main__":
     client = Client.load()
 
@@ -126,11 +154,22 @@ if __name__ == "__main__":
         exit()
 
     participants = network_participants(client.datasite_path.parent)
+    
+    global_model = None
+    if len(participants) == 0:
+        print("No new model found! Skipping aggregation...")
+    else:
+        print("Aggregating models between ", participants)
 
-    global_model = aggregate_model(
-        participants,
-        client.datasite_path.parent,
-        client.datasite_path / "public" / "global_model.pth",
-    )
+        global_model = aggregate_model(
+            participants,
+            client.datasite_path.parent,
+            client.datasite_path / "public" / "global_model.pth",
+        )
+
+    if global_model:
+        dataset_path = "./mnist_dataset.pt"
+        accuracy = evaluate_global_model(global_model, dataset_path)
+        print(f"Global model accuracy: {accuracy:.2f}%")
 
     save_aggregation_timestamp(client.datasite_path)
