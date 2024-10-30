@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 from datetime import datetime, timedelta
 from syftbox.lib import Client
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import ConcatDataset, DataLoader, TensorDataset
 import os
 from pathlib import Path
 import torch.optim as optim
 import json
+import shutil
 
 
 class SimpleNN(nn.Module):
@@ -42,6 +43,7 @@ def train_model(datasite_path: Path, dataset_path: Path, public_folder_path: Pat
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
+    all_datasets = []
     for dataset_file in dataset_path_files:
 
         # load the saved mnist subset
@@ -50,21 +52,25 @@ def train_model(datasite_path: Path, dataset_path: Path, public_folder_path: Pat
         # create a tensordataset
         dataset = TensorDataset(images, labels)
 
-        # create a dataloader for the dataset
-        train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+        all_datasets.append(dataset)
 
-        # training loop
-        for epoch in range(1000):
-            running_loss = 0
-            for images, labels in train_loader:
-                optimizer.zero_grad()
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
+    combined_dataset = ConcatDataset(all_datasets)
 
-                # accumulate loss
-                running_loss += loss.item()
+    # create a dataloader for the dataset
+    train_loader = DataLoader(combined_dataset, batch_size=64, shuffle=True)
+
+    # training loop
+    for epoch in range(1000):
+        running_loss = 0
+        for images, labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            # accumulate loss
+            running_loss += loss.item()
 
     # Serialize the model
     output_model_path = Path(public_folder_path / "model.pth")
@@ -84,6 +90,7 @@ def time_to_train(datasite_path: Path):
 
     if not fl_pipeline_path.is_dir():
         os.makedirs(str(fl_pipeline_path))
+        copy_folder_contents("./mnist_samples", str(datasite_path / "private/"))
         return True
 
     with open(str(last_round_file_path), "r") as last_round_file:
@@ -105,6 +112,16 @@ def save_training_timestamp(datasite_path: Path) -> None:
     with open(str(last_round_file_path), "w") as last_round_file:
         timestamp = datetime.now().isoformat()
         json.dump({"last_train": timestamp}, last_round_file)
+
+
+def copy_folder_contents(src_folder, dest_folder):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    for item in os.listdir(src_folder):
+        src_path = os.path.join(src_folder, item)
+        dest_path = os.path.join(dest_folder, item)
+        if not os.path.isdir(src_path):
+            shutil.copy2(src_path, dest_path)
 
 
 if __name__ == "__main__":
