@@ -23,11 +23,12 @@ class SimpleNN(nn.Module):
 def get_model_file(path: Path) -> str | None:
     model_files = []
     entries= os.listdir(path)
-    pattern = r'^pretrained_label_[0-9]\.pth$'
+    pattern = r'^pretrained_mnist_label_[0-9]\.pt$'
 
     for entry in entries:
-        if re.match(pattern):
+        if re.match(pattern, entry):
             model_files.append(entry)
+    
     
     return model_files[0] if model_files else None
 
@@ -41,12 +42,15 @@ def aggregate_model(
     aggregated_model_weights = {}
 
     n_peers = len(participants)
+    aggregated_peers = []
     for user_folder in participants:
         public_folder_path: Path = Path(datasite_path) / user_folder / "public"
 
-        model_file = get_model_file(public_folder_path) 
+        model_file = get_model_file(public_folder_path)
         if model_file is None:
             continue
+        model_file = public_folder_path / model_file
+        aggregated_peers.append(user_folder)
 
         user_model_state = torch.load(str(model_file))
         for key in global_model_state_dict.keys():
@@ -62,6 +66,7 @@ def aggregate_model(
                 aggregated_model_weights[key] += user_model_state[key] * (1 / n_peers)
 
     if aggregated_model_weights:
+        print(f"Aggregated models from {aggregated_peers}")
         global_model.load_state_dict(aggregated_model_weights)
         torch.save(global_model.state_dict(), str(global_model_path))
         return global_model
@@ -124,7 +129,6 @@ if __name__ == "__main__":
     
     global_model = None
     
-    print("Aggregating models between ", participants)
 
     global_model = aggregate_model(
         participants,
@@ -136,6 +140,8 @@ if __name__ == "__main__":
         dataset_path = "./mnist_dataset.pt"
         accuracy = evaluate_global_model(global_model, dataset_path)
         print(f"Global model accuracy: {accuracy:.2f}%")
+    else:
+        print("No models to aggregate")
 
 
 
