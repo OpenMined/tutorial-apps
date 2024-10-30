@@ -9,7 +9,6 @@ import torch.optim as optim
 import json
 import shutil
 
-
 class SimpleNN(nn.Module):
     def __init__(self):
         super(SimpleNN, self).__init__()
@@ -59,6 +58,15 @@ def train_model(datasite_path: Path, dataset_path: Path, public_folder_path: Pat
     # create a dataloader for the dataset
     train_loader = DataLoader(combined_dataset, batch_size=64, shuffle=True)
 
+    # Open log file in append mode
+    output_logs_path = Path(public_folder_path / "training.log")
+    log_file = open(str(output_logs_path), "a")
+    
+    # Log training start
+    start_msg = f"[{datetime.now().isoformat()}] Starting training...\n"
+    log_file.write(start_msg)
+    log_file.flush()
+
     # training loop
     for epoch in range(1000):
         running_loss = 0
@@ -71,6 +79,12 @@ def train_model(datasite_path: Path, dataset_path: Path, public_folder_path: Pat
 
             # accumulate loss
             running_loss += loss.item()
+        
+        # Calculate average loss for the epoch
+        avg_loss = running_loss / len(train_loader)
+        log_msg = f"[{datetime.now().isoformat()}] Epoch {epoch + 1:04d}: Loss = {avg_loss:.6f}\n"
+        log_file.write(log_msg)
+        log_file.flush()  # Force write to disk
 
     # Serialize the model
     output_model_path = Path(public_folder_path / "model.pth")
@@ -80,6 +94,12 @@ def train_model(datasite_path: Path, dataset_path: Path, public_folder_path: Pat
     with open(str(output_training_json_path), "w") as training_info_file:
         timestamp = datetime.now().isoformat()
         json.dump({"last_train": timestamp}, training_info_file)
+
+    # Log completion
+    final_msg = f"[{datetime.now().isoformat()}] Training completed. Final loss: {avg_loss:.6f}\n"
+    log_file.write(final_msg)
+    log_file.flush()
+    log_file.close()
 
 
 def time_to_train(datasite_path: Path):
