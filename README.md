@@ -9,4 +9,4 @@ This app, together with the `model_local_training_app`, form a semi-FL app using
 3. Install the model aggregator app on `a`: `syftbox app install model_aggregator --config_path <path_to_config.json>` where `<path_to_config.json>` points to `a`'s `config.json` file
 4. Moving the MNIST data parts in `b` and `c`'s `private` into `private/datasets` to train
 5. The training logs can be seen at `b` and `c`'s `public/training.log`, and the trained model `.pt` will also be in the `public` folder once it's trained
-6. `a` will automatically aggregate the models from `b` and `c` when it detects if there are new trained model in `b` and `c`'s public folders. Check `a`'s SyftBox client log to see if the global model accuracy has improved
+6. `a` will automatically aggregate the models from `b` and `c` when it detects if there are new trained model in `b` and `c`'s public folders. Check `a`'s SyftBox client log to see if the global model accuracy has improved. Look for key words "Aggregating models between" and "Global model accuracy"
