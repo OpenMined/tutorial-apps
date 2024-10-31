@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 import re
+import json
 
 
 class SimpleNN(nn.Module):
@@ -28,7 +29,6 @@ def get_model_file(path: Path) -> str | None:
     for entry in entries:
         if re.match(pattern, entry):
             model_files.append(entry)
-    
     
     return model_files[0] if model_files else None
 
@@ -74,41 +74,38 @@ def aggregate_model(
         return None
 
 
-
-
-def network_participants(datasite_path: Path):
+def network_participants(datasite_path: Path, participants_json_file_path: Path):
     exclude_dir = ["apps", ".syft"]
-
     entries = os.listdir(datasite_path)
+    with open(participants_json_file_path, "r") as f:
+        participants = json.load(f)
+        participants = participants["participants"]
 
-    users = []
+    all_users = []
     for entry in entries:
         user_path = Path(datasite_path / entry)
         is_excluded_dir = entry in exclude_dir
-
         is_valid_peer = user_path.is_dir() and not is_excluded_dir
         if is_valid_peer:
-            users.append(entry)
+            all_users.append(entry)
 
-    return users
-
+    participants = list(set(participants) & set(all_users))
+    missing_participants = list(set(participants) - set(all_users))
+    print(f"Pretrained model aggregator participants: {participants}")
+    print(f"Pretrained model aggregator missing participants: {missing_participants}")
+    return participants
 
 
 def evaluate_global_model(global_model: nn.Module, dataset_path: Path) -> float:
     global_model.eval()
-
     # load the saved mnist subset
     images, labels = torch.load(str(dataset_path))
-
     # create a tensordataset
     dataset = TensorDataset(images, labels)
-
     # create a dataloader for the dataset
     data_loader = DataLoader(dataset, batch_size=64, shuffle=True)
-
     # dataset = torch.load(str(dataset_path))
     # data_loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=False)
-
     correct = 0
     total = 0
     with torch.no_grad():
@@ -123,19 +120,13 @@ def evaluate_global_model(global_model: nn.Module, dataset_path: Path) -> float:
 
 if __name__ == "__main__":
     client = Client.load()
-
-
-    participants = network_participants(client.datasite_path.parent)
-    
+    participants = network_participants(client.datasite_path.parent, Path("participants.json"))
     global_model = None
-    
-
     global_model = aggregate_model(
         participants,
         client.datasite_path.parent,
         client.datasite_path / "public" / "global_model.pth",
     )
-
     if global_model:
         dataset_path = "./mnist_dataset.pt"
         accuracy = evaluate_global_model(global_model, dataset_path)
