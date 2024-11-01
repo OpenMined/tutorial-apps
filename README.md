@@ -14,6 +14,6 @@ This app, together with the `pretrained_model_local` app, form an aggregation pi
 ## Running live as a model aggregator
 0. Clone the `pretrained_model_aggregator` branch into the current directory, e.g. with the command `git clone --branch pretrained_model_aggregator https://github.com/OpenMined/tutorial-apps.git pretrained_model_aggregator`
 1. Run your syft client with `syftbox client`
-2. Install the aggregator app `syftbox app install pretrained_model_local`
-3. Go to your sync folder's `apps/pretrained_model_local` and change the list of participants in `participants.json`
+2. Install the aggregator app `syftbox app install pretrained_model_aggregator`
+3. Go to your sync folder's `apps/pretrained_model_aggregator` and change the list of participants in `participants.json`
 4. Wait for the participants to submit their pretrained models. Monitor your syftbox client logs, look for key words "Aggregated models from" and "Global model accuracy"
