@@ -92,7 +92,6 @@ def network_participants(datasite_path: Path, participants_json_file_path: Path)
     participants = list(set(participants) & set(all_users))
     missing_participants = list(set(participants) - set(all_users))
     print(f"Pretrained model aggregator participants: {participants}")
-    print(f"Pretrained model aggregator missing participants: {missing_participants}")
     return participants
 
 
