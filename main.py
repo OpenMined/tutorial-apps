@@ -10,6 +10,8 @@ class ProjectWorkspace:
     Hold the app configs and create the app directories
     according to the structure below:
     ```
+    TODO: change my_cool_fl_proj to be under launch/, running/ and done/ folders 
+    TODO: manually copy the fl_config.json, model_arch.py and global_model_weight.pt to the launch/ folder
     app_pipelines
     └── fl_aggregator
             └── my_cool_fl_proj
