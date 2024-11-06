@@ -12,25 +12,23 @@ class ProjectWorkspace:
     ```
     app_pipelines
     └── fl_aggregator
-        └── launch
             └── my_cool_fl_proj
-                ├── fl_config.json
-                ├── model_arch.py
-                ├── global_model_weights.py
-        └── running
-            └── my_cool_fl_proj
-                ├── fl_clients 
-                │   ├── a@openmined.org
-                │   ├── b@openmined.org
-                │   ├── c@openmined.org
-                ├── agg_weights  # to store aggregator's weights for each round
-                ├── fl_config.json  # moved from the launch folder after the app start
-                ├── global_model_weights.pt
-                ├── model_arch.py  # moved from the launch folder
-                └── state.json
-        └── done
-            └── my_cool_fl_proj
-                └── aggregated_model_weights.pt
+                └── launch
+                        ├── fl_config.json
+                        ├── model_arch.py
+                        ├── global_model_weights.py
+                └── running
+                        ├── fl_clients 
+                        │   ├── a@openmined.org
+                        │   ├── b@openmined.org
+                        │   ├── c@openmined.org
+                        ├── agg_weights  # to store aggregator's weights for each round
+                        ├── fl_config.json  # moved from the launch folder after the app start
+                        ├── global_model_weights.pt
+                        ├── model_arch.py  # moved from the launch folder
+                        └── state.json
+                └── done
+                        └── aggregated_model_weights.pt
     ```
     """
     def __init__(self, config_path: str | Path, client: Client) -> None:
@@ -44,7 +42,7 @@ class ProjectWorkspace:
             self.configs = json.load(f)
             pprint(self.configs)
             self.proj_name = self.configs["project_name"]
-            self.participants = self.configs["participants"]
+            self.participants = set(self.configs["participants"]).intersection(self.all_users())
             self.model_arch_path = Path(self.configs["model_arch"])
             self.global_model_weight_path = Path(self.configs["model_weight"])
 
@@ -67,13 +65,24 @@ class ProjectWorkspace:
         for participant in self.participants:
             participant_folder = self.fl_clients_folder / participant
             participant_folder.mkdir(parents=True, exist_ok=True)
-    
+
     @property
     def participants_proj_path(self):
         return [
-            Path(self.client.datasite_path.parent) / participant / "app_pipelines" / "fl_client"
+            Path(self.client.datasite_path.parent) / participant / "app_pipelines" / "fl_client" / self.proj_name
             for participant in self.participants
         ]
+
+    def all_users(self) -> list[str]:
+        exclude_dir = ["apps", ".syft"]
+        entries = self.client.datasite_path.parent.iterdir()
+        users = []
+        for entry in entries:
+            is_excluded_dir = entry.name in exclude_dir
+            is_valid_peer = entry.is_dir() and not is_excluded_dir
+            if is_valid_peer:
+                users.append(entry.name)
+        return users
 
 
 def launch(proj_workspace: ProjectWorkspace) -> None:
@@ -95,7 +104,7 @@ def launch(proj_workspace: ProjectWorkspace) -> None:
         # Copy the model architecture file
         shutil.copy(proj_workspace.model_arch_path, model_arch_dst)
 
-    if not not global_model_dst.is_file():
+    if not global_model_dst.is_file():
         if proj_workspace.global_model_weight_path.is_file():
             # Copy the global model weights
             print(f"Copying initial weights to {global_model_dst}")
@@ -115,7 +124,11 @@ def request_fl_client(proj_workspace: ProjectWorkspace):
     `app_pipelines/fl_client/request` folder
     """
     print("Requesting participants to join the FL flow")
-    print(proj_workspace.participants_proj_path)
+    for participant_proj_path in proj_workspace.participants_proj_path:
+        request_folder = participant_proj_path / "request"
+        # request_folder.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(proj_workspace.launch_folder, request_folder, dirs_exist_ok=True)
+        print(f"Request sent to {participant_proj_path}")
 
 
 if __name__ == "__main__":
