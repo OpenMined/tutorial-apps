@@ -10,7 +10,7 @@ class ProjectWorkspace:
     Hold the app configs and create the app directories
     according to the structure below:
     ```
-    TODO: change my_cool_fl_proj to be under launch/, running/ and done/ folders 
+    TODO: change my_cool_fl_proj to be under launch/, running/ and done/ folders
     TODO: manually copy the fl_config.json, model_arch.py and global_model_weight.pt to the launch/ folder
     app_pipelines
     └── fl_aggregator
@@ -20,7 +20,7 @@ class ProjectWorkspace:
                         ├── model_arch.py
                         ├── global_model_weights.py
                 └── running
-                        ├── fl_clients 
+                        ├── fl_clients
                         │   ├── a@openmined.org
                         │   ├── b@openmined.org
                         │   ├── c@openmined.org
@@ -33,6 +33,7 @@ class ProjectWorkspace:
                         └── aggregated_model_weights.pt
     ```
     """
+
     def __init__(self, config_path: str | Path, client: Client) -> None:
         self.config_path = config_path
         self.client = client
@@ -44,18 +45,25 @@ class ProjectWorkspace:
             self.configs = json.load(f)
             pprint(self.configs)
             self.proj_name = self.configs["project_name"]
-            self.participants = set(self.configs["participants"]).intersection(self.all_users())
+            self.participants = set(self.configs["participants"]).intersection(
+                self.all_users()
+            )
             self.model_arch_path = Path(self.configs["model_arch"])
             self.global_model_weight_path = Path(self.configs["model_weight"])
 
     def setup_paths(self) -> None:
-        self.app_pipelines_proj_path = Path(self.client.datasite_path) / "app_pipelines" / "fl_aggregator" / self.proj_name
+        self.app_pipelines_proj_path = (
+            Path(self.client.datasite_path)
+            / "app_pipelines"
+            / "fl_aggregator"
+            / self.proj_name
+        )
         self.launch_folder = self.app_pipelines_proj_path / "launch"
         self.running_folder = self.app_pipelines_proj_path / "running"
         self.done_folder = self.app_pipelines_proj_path / "done"
         self.fl_clients_folder = self.running_folder / "fl_clients"
         self.agg_weights_folder = self.running_folder / "agg_weights"
-    
+
     def create_dirs(self) -> None:
         self.app_pipelines_proj_path.mkdir(parents=True, exist_ok=True)
         self.launch_folder.mkdir(parents=True, exist_ok=True)
@@ -71,7 +79,11 @@ class ProjectWorkspace:
     @property
     def participants_proj_path(self):
         return [
-            Path(self.client.datasite_path.parent) / participant / "app_pipelines" / "fl_client" / self.proj_name
+            Path(self.client.datasite_path.parent)
+            / participant
+            / "app_pipelines"
+            / "fl_client"
+            / self.proj_name
             for participant in self.participants
         ]
 
@@ -94,42 +106,48 @@ def launch(proj_workspace: ProjectWorkspace) -> None:
     creates random initial weights from `model_arch.py`
     """
 
-    config_dst = proj_workspace.launch_folder / "fl_config.json"
-    model_arch_dst = proj_workspace.launch_folder / "model_arch.py"
+    # config_dst = proj_workspace.launch_folder / "fl_config.json"
+    # model_arch_dst = proj_workspace.launch_folder / "model_arch.py"
     global_model_dst = proj_workspace.launch_folder / "global_model_weight.pt"
-    
-    # Copy the config file
-    if not config_dst.is_file():
-        shutil.copy(proj_workspace.config_path, config_dst)
 
-    if not model_arch_dst.is_file():
-        # Copy the model architecture file
-        shutil.copy(proj_workspace.model_arch_path, model_arch_dst)
+    # Copy the config file
+    # if not config_dst.is_file():
+    #     shutil.copy(proj_workspace.config_path, config_dst)
+    #
+    # if not model_arch_dst.is_file():
+    #     # Copy the model architecture file
+    #     shutil.copy(proj_workspace.model_arch_path, model_arch_dst)
 
     if not global_model_dst.is_file():
         if proj_workspace.global_model_weight_path.is_file():
             # Copy the global model weights
-            print(f"Copying initial weights to {global_model_dst}")
-            shutil.copy(proj_workspace.global_model_weight_path, global_model_dst)
+            # print(f"Copying initial weights to {global_model_dst}")
+            # shutil.copy(proj_workspace.global_model_weight_path, global_model_dst)
+            pass
         else:
             from model_arch import FLModel
             import torch
+
             model = FLModel()
-            torch.save(model.state_dict(), global_model_dst)
-            print(f"Creating random initial weights and save to {global_model_dst}")
+            torch.save(model.state_dict(), proj_workspace.global_model_weight_path)
+            print(
+                f"Creating random initial weights and save to {proj_workspace.global_model_weight_path}"
+            )
 
 
 def request_fl_client(proj_workspace: ProjectWorkspace):
     """
     Creates a request to the participants to join the FL flow by copying the
-    content of the `launch` folder to the participant client's 
+    content of the `launch` folder to the participant client's
     `app_pipelines/fl_client/request` folder
     """
     print("Requesting participants to join the FL flow")
     for participant_proj_path in proj_workspace.participants_proj_path:
         request_folder = participant_proj_path / "request"
         # request_folder.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(proj_workspace.launch_folder, request_folder, dirs_exist_ok=True)
+        shutil.copytree(
+            proj_workspace.launch_folder, request_folder, dirs_exist_ok=True
+        )
         print(f"Request sent to {participant_proj_path}")
 
 
@@ -137,7 +155,7 @@ if __name__ == "__main__":
     client = Client.load()
 
     fl_config_path = Path("fl_config.json")
-    proj_workspace =  ProjectWorkspace(fl_config_path, client)
+    proj_workspace = ProjectWorkspace(fl_config_path, client)
     proj_workspace.create_dirs()
 
     launch(proj_workspace)
