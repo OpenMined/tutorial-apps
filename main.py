@@ -64,12 +64,15 @@ class ProjectWorkspace:
         # TODO: create a custom syft permission for the clients in the `fl_clients` folder
 
     @property
-    def participants_proj_path(self):
+    def participants_app_path(self):
         return [
-            Path(self.client.datasite_path.parent)
-            / participant
-            / "app_pipelines"
-            / "fl_client"
+            ( 
+                participant, 
+                Path(self.client.datasite_path.parent)
+                    / participant
+                    / "app_pipelines"
+                    / "fl_client"
+            )
             for participant in self.participants
         ]
     
@@ -87,6 +90,7 @@ class ProjectWorkspace:
             if is_valid_peer:
                 users.append(entry.name)
         return users
+
 
 
 def launch_fl_project(client: Client) -> ProjectWorkspace | None:
@@ -157,23 +161,36 @@ def launch_fl_project(client: Client) -> ProjectWorkspace | None:
     return proj_workspace
 
 
-def request_fl_client(proj_workspace: ProjectWorkspace):
+def all_clients_installed_app(proj_workspace: ProjectWorkspace):
     """
-    Creates a request to the participants to join the FL flow by copying the
-    content of the `launch` folder to the participant client's
+    Check if all the clients have installed the `fl_client` app
+    """
+    all_installed = True
+    for participant, participant_proj_path in proj_workspace.participants_app_path:
+        if not participant_proj_path.is_dir():
+            print(f"Client {participant} has not installed the `fl_client` app")
+            all_installed = False
+    if all_installed:
+        print("All clients have installed the `fl_client` app")
+    return all_installed
+
+
+def request_fl_clients(proj_workspace: ProjectWorkspace):
+    """
+    Creates requests to the participants to join the FL flow by copying the
+    `fl_config.json`, model arch and global model weight path to the
     `app_pipelines/fl_client/request` folder
     """
     print("Requesting participants to join the FL flow")
-    
-    # TODO: check first if the fl_client folder exists in the participant's app_pipelines
-    # after the client installs the fl_client app, copy the request folder to the fl_client folder
-    for participant_proj_path in proj_workspace.participants_proj_path:
-        request_folder = participant_proj_path / "request"
-        # request_folder.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(
-            proj_workspace.launch_folder, request_folder, dirs_exist_ok=True
-        )
-        print(f"Request sent to {participant_proj_path}")
+    for participant, participants_app_path in proj_workspace.participants_app_path:
+        request_folder = participants_app_path / "request"
+        if request_folder.is_dir():
+            proj_request_folder = request_folder / proj_workspace.proj_name
+            proj_request_folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy(proj_workspace.configs_path, proj_request_folder)
+            shutil.copy(proj_workspace.model_arch_path, proj_request_folder)
+            shutil.copy(proj_workspace.global_model_weight_path, proj_request_folder)
+            print(f"Request sent to {participant}")
 
 
 def run_fl_rounds():
@@ -193,4 +210,6 @@ if __name__ == "__main__":
     
     proj_workspace = launch_fl_project(client)
 
-    # request_fl_client(proj_workspace)
+    if proj_workspace is not None:
+        if all_clients_installed_app(proj_workspace):
+            request_fl_clients(proj_workspace)
