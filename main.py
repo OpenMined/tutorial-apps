@@ -1,215 +1,255 @@
 from syftbox.lib import Client
 from pathlib import Path
 import json
-from pprint import pprint
 import shutil
+import os
+
+# Exception name to indicate the state cannot advance
+# as there are some pre-requisites that are not met
+class StateNotReady(Exception):
+    pass
 
 
-class ProjectWorkspace:
+def get_all_directories(path: Path) -> list:
     """
-    Hold the app configs and create the app directories
-    according to the structure below:
+    Returns the list of directories present in the given path
+    """
+    return [x for x in path.iterdir() if x.is_dir()]
+
+def init_fl_aggregator_app(client: Client) -> None:
+    """
+    Creates the `fl_aggregator` app in the `app_pipelines` folder
+    with the following structure:
     ```
+    app_pipelines
+    └── fl_aggregator
+            └── launch
+            └── running
+            └── done
+    ```
+    """
+    app_pipelines = Path(client.datasite_path) / "app_pipelines"
+    fl_aggregator = app_pipelines / "fl_aggregator"
+
+    for folder in ["launch", "running", "done"]:
+        fl_aggregator_folder = fl_aggregator / folder
+        fl_aggregator_folder.mkdir(parents=True, exist_ok=True)
+
+
+def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
+    """
+    Initializes the FL project by reading the `fl_config.json` file
+    If the project with same name already exists in the `running` folder
+    then it skips creating the project
+
+    If the project does not exist, it creates a new project with the
+    project name and creates the folders for the clients and the aggregator
+
     app_pipelines
     └── fl_aggregator
             └── launch
             └── running
                 └── <fl_project_name>
                     ├── fl_clients
-                    │   ├── a@openmined.org
-                    │   ├── b@openmined.org
-                    │   ├── c@openmined.org
-                    ├── agg_weights  # to store aggregator's weights for each round
-                    ├── fl_config.json  # moved from the launch folder after the app start
-                    ├── global_model_weights.pt  # moved from the launch folder
-                    ├── model_arch.py  # moved from the launch folder
+                    │   ├── ..
+                    ├── agg_weights
+                    ├── fl_config.json
+                    ├── global_model_weights.pt
+                    ├── model_arch.py
                     └── state.json
             └── done
-                └── <fl_project_name>
-                    └── aggregated_model_weights.pt
-    ```
     """
+    with open(fl_config_json_path, "r") as f:
+        proj_configs: dict = json.load(f)
+    
+    
+    proj_name = proj_configs["project_name"]
+    participants = proj_configs["participants"]
 
-    def __init__(self, client: Client, project_configs: dict) -> None:
-        self.client = client
-        self.configs = project_configs
-        self.proj_name = self.configs["project_name"]
-        self.participants = self.configs["participants"]
-        self.setup_paths()
+    app_pipelines = Path(client.datasite_path) / "app_pipelines"
+    fl_aggregator = app_pipelines / "fl_aggregator"
+    running_folder = fl_aggregator / "running"
+    proj_folder = running_folder / proj_name
 
-    def setup_paths(self) -> None:
-        self.app_pipelines_app_path = (
-            Path(self.client.datasite_path) / "app_pipelines" / "fl_aggregator"
-        )
-        self.running_folder = self.app_pipelines_app_path / "running" / self.proj_name
-        self.done_folder = self.app_pipelines_app_path / "done" / self.proj_name
-        self.fl_clients_folder = self.running_folder / "fl_clients"
-        self.agg_weights_folder = self.running_folder / "agg_weights"
-        
-        self.configs_path = self.running_folder / "fl_config.json"
-        self.model_arch_path = self.running_folder / self.configs["model_arch"]
-        self.global_model_weight_path = self.running_folder / self.configs["model_weight"]
+    if proj_folder.is_dir():
+        print(f"FL project {proj_name} already exists")
+        return
+    else:
+        print(f"Creating new FL project {proj_name}")
+        proj_folder.mkdir(parents=True, exist_ok=True)
+        fl_clients_folder = proj_folder / "fl_clients"
+        agg_weights_folder = proj_folder / "agg_weights"
+        fl_clients_folder.mkdir(parents=True, exist_ok=True)
+        agg_weights_folder.mkdir(parents=True, exist_ok=True)
 
-    def create_dirs(self) -> None:
-        self.app_pipelines_app_path.mkdir(parents=True, exist_ok=True)
-        self.running_folder.mkdir(parents=True, exist_ok=True)
-        self.done_folder.mkdir(parents=True, exist_ok=True)
-        self.agg_weights_folder.mkdir(parents=True, exist_ok=True)
-
-        self.fl_clients_folder.mkdir(parents=True, exist_ok=True)
-        for participant in self.participants:
-            participant_folder = self.fl_clients_folder / participant
+        # create the folders for the participants
+        for participant in participants:
+            participant_folder = fl_clients_folder / participant
             participant_folder.mkdir(parents=True, exist_ok=True)
-        
+
         # TODO: create a custom syft permission for the clients in the `fl_clients` folder
 
-    @property
-    def participants_app_path(self):
-        return [
-            ( 
-                participant, 
-                Path(self.client.datasite_path.parent)
-                    / participant
-                    / "app_pipelines"
-                    / "fl_client"
-            )
-            for participant in self.participants
-        ]
-    
-    @property
-    def online_participants(self):
-        return set(self.participants).intersection(self.all_users())
+        # copy the config file to the project's running folder
+        shutil.copy(fl_config_json_path, proj_folder)
 
-    def all_users(self) -> list[str]:
-        exclude_dir = ["apps", ".syft"]
-        entries = self.client.datasite_path.parent.iterdir()
-        users = []
-        for entry in entries:
-            is_excluded_dir = entry.name in exclude_dir
-            is_valid_peer = entry.is_dir() and not is_excluded_dir
-            if is_valid_peer:
-                users.append(entry.name)
-        return users
+        # move the model architecture and global model weights to the project's running folder
+        model_arch_src = fl_aggregator / "launch" / proj_configs["model_arch"]
+        shutil.move(model_arch_src, proj_folder)
+
+        global_model_src = fl_aggregator / "launch" / proj_configs["model_weight"]
+        shutil.move(global_model_src, proj_folder)
 
 
+        # TODO: create a state.json file to keep track of the project state
+        # if needed while running the FL rounds
 
-def launch_fl_project(client: Client) -> ProjectWorkspace | None:
+        # Remove fl_config.json, model_arch.py and global_model_weights.pt from the launch folder
+        # TODO: Can we use shutil to remove the files?
+        os.remove(fl_config_json_path)
+        os.remove(model_arch_src)
+        os.remove(global_model_src)
+
+def launch_fl_project(client: Client) -> None:
     """
-    - Create the `launch` folder for the `fl_aggregator` app
+    - Checks if `fl_config.json` file is present in the `launch` folder
+    - Check if the project exists in the `running` folder with the same `project_name`.
+        If not, create a new Project
+        a. creates a directory with the project name in running folder
+        b. inside the project it creates the folders of clients with a custom syft permissions
+        c. copies over the fl_config.json and model_arch.py and global_model_weights.pt
+
+    Example:
+
+    - Manually Copy the `fl_config.json`, `model_arch.py` and `global_model_weights.pt` to the `launch` folder
         app_pipelines
         └── fl_aggregator
                 └── launch
-                    ├── fl_config.json (dragged and dropped by the FL aggregator)
-                    ├── model_arch.py (dragged and dropped by the FL aggregator)
-                    ├── global_model_weights.py (dragged and dropped by the FL aggregator)
-    - Read the `fl_config.json` file in the `launch` folder
-    - Check if the project exists in the `running` folder with the same `project_name`.
-        If not, create a new `ProjectWorkspace` that keeps track of in `project_name/running/`
-        and `project_name/done/`
-    a. creates a directory with the project name in running folder
-    b. inside the project it creates the folders of clients with a custom syft permissions
-    c. copies over the fl_config.json and model_arch.py and global_model_weights.pt
+                    ├── fl_config.json (dragged and dropped by the user)
+                    ├── model_arch.py (dragged and dropped by the FL user)
+                    ├── global_model_weights.pt (dragged and dropped by the FL user)
     """
     launch_folder = (
         Path(client.datasite_path) / "app_pipelines" / "fl_aggregator" / "launch"
     )
-    launch_folder.mkdir(parents=True, exist_ok=True)
 
-    fl_config_json = launch_folder / "fl_config.json"
-    if not fl_config_json.is_file():
-        print(f"`fl_config.json` not found in the {launch_folder} folder. Please put it there.")
+    fl_config_json_path = launch_folder / "fl_config.json"
+    if not fl_config_json_path.is_file():
+        print(f"`fl_config.json` not found in the {launch_folder} folder. Skipping...")
+        return
+    
+    initialize_fl_project(client, fl_config_json_path)
+
+def get_network_participants(client: Client):
+    datasite_path = Path(client.datasite_path.parent)
+    exclude_dir = ["apps", ".syft"]
+
+    entries = datasite_path.iterdir()
+
+    users = []
+    for entry in entries:
+        if Path(datasite_path / entry).is_dir() and entry not in exclude_dir:
+            users.append(entry)
+
+    return users
+
+def check_fl_client_installed(client: Client, proj_folder: Path):
+    """
+    Checks if the client has installed the `fl_client` app
+    """
+    fl_clients = get_all_directories(proj_folder / "fl_clients")
+    network_participants = get_network_participants(client)
+    for fl_client in fl_clients:
+        if fl_client.name not in network_participants:
+            raise StateNotReady(f"Client {fl_client.name} is not part of the network")
+
+        fl_client_app_path = client.datasite_path.parent / fl_client.name / "apps" / "fl_client"
+        if not fl_client_app_path.is_dir():
+            raise StateNotReady(f"Client {fl_client.name} has not installed the `fl_client` app")
+    
+def check_proj_requests(client: Client, proj_folder: Path):
+    """
+    Step 1: Checks if the project requests are sent to the clients
+    Step 2: Checks if all the clients have approved the project
+
+    Note: The clients approve the project when they move from the `request` folder to the `running` folder
+
+    """
+    fl_clients = get_all_directories(proj_folder / "fl_clients")
+    project_unapproved_clients = []
+    for fl_client in fl_clients:
+        fl_client_app_path = client.datasite_path.parent / fl_client.name / "apps" / "fl_client"
+        fl_client_request_folder = fl_client_app_path / "request" / proj_folder.name
+        if not fl_client_request_folder.is_dir():
+            # Create a request folder for the client
+            fl_client_request_folder.mkdir(parents=True, exist_ok=True)
+
+            # Copy the fl_config.json, model_arch.py and global_model_weights.pt to the request folder
+            shutil.copy(proj_folder / "fl_config.json", fl_client_request_folder)
+            shutil.copy(proj_folder / "model_arch.py", fl_client_request_folder)
+
+            print(f"Request sent to {fl_client.name} for the project {proj_folder.name}")
+
+        fl_client_running_folder = fl_client_app_path / "running" / proj_folder.name
+        if not fl_client_running_folder.is_dir():
+            project_unapproved_clients.append(fl_client.name)
+
+    
+    if project_unapproved_clients:
+        raise StateNotReady(f"Project {proj_folder.name} is not approved by the clients {project_unapproved_clients}")
+    
+
+
+def _advance_fl_project(client: Client,proj_folder: Path) -> None:
+    """
+    Iterate over all the project folder, it will try to advance its state.
+    1. Has the client installed the fl_client app or not (app_pipelines/fl_client), if not throw an error message
+    2. have we submitted the project request to the clients  (app_pipelines/fl_client/request)
+    3. Have all the clients approved the project or not.
+    4. let assume the round ix x,  place global_weights_round_x.pt inside all the clients
+    5. wait for the trained model from the clients 
+    6. aggregate the trained model 
+    7. repeat d until all the rounds are complete
+    """
+
+    try: 
+        check_fl_client_installed(client, proj_folder)
+
+        check_proj_requests(client, proj_folder)
+
+        # advance_fl_round(client, proj_folder)
+    
+    except StateNotReady as e:
+        print(e)
         return
 
-    # this should be the only place where the `fl_config.json` be read (single source of truth)
-    with open(fl_config_json, "r") as f:
-        proj_configs: dict = json.load(f)
-        proj_workspace = ProjectWorkspace(client, proj_configs)
 
-    if proj_workspace.running_folder.is_dir():
-        print(f"FL project {proj_workspace.proj_name} already exists")
-    else:
-        print(f"Creating new FL project {proj_workspace.proj_name}")
-        proj_workspace.create_dirs()
-        # copy the config file to the project's running folder
-        if not proj_workspace.configs_path.is_file():
-            shutil.copy(fl_config_json, proj_workspace.configs_path)
-
-    # move the model architecture and global model weights to the project's running folder
-    model_arch_src = launch_folder / proj_workspace.configs["model_arch"]
-    if not proj_workspace.model_arch_path.is_file():
-        if not model_arch_src.is_file():
-            print(f"Model architecture file not found in the {launch_folder} folder. Please put it there!")
-        else:
-            shutil.move(model_arch_src, proj_workspace.model_arch_path)  
-
-    global_model_src = launch_folder / proj_workspace.configs["model_weight"]
-    if not proj_workspace.global_model_weight_path.is_file():
-        if not global_model_src.is_file():
-            print(f"Initial global model weight not found in the {launch_folder} folder. Please put it there!")
-            # print(
-            #     f"Creating random initial weights and save to {proj_workspace.global_model_weight_path}"
-            # )
-            # from model_arch import FLModel
-            # import torch
-            # model = FLModel()
-            # torch.save(model.state_dict(), proj_workspace.global_model_weight_path)
-            return
-        else:
-            print(f"Moving initial global model weights to {proj_workspace.global_model_weight_path}")
-            shutil.move(global_model_src, proj_workspace.global_model_weight_path)
-
-    return proj_workspace
-
-
-def all_clients_installed_app(proj_workspace: ProjectWorkspace):
+def advance_fl_projects(client: Client) -> None:
     """
-    Check if all the clients have installed the `fl_client` app
+    Iterates over the `running` folder and tries to advance the FL projects
     """
-    all_installed = True
-    for participant, participant_proj_path in proj_workspace.participants_app_path:
-        if not participant_proj_path.is_dir():
-            print(f"Client {participant} has not installed the `fl_client` app")
-            all_installed = False
-    if all_installed:
-        print("All clients have installed the `fl_client` app")
-    return all_installed
+    running_folder = (
+        Path(client.datasite_path) / "app_pipelines" / "fl_aggregator" / "running"
+    )
+    for proj_folder in running_folder.iterdir():
+        if proj_folder.is_dir():
+            proj_name = proj_folder.name
+            print(f"Advancing FL project {proj_name}")
+            _advance_fl_project(client, proj_folder)
 
 
-def request_fl_clients(proj_workspace: ProjectWorkspace):
-    """
-    Creates requests to the participants to join the FL flow by copying the
-    `fl_config.json`, model arch and global model weight path to the
-    `app_pipelines/fl_client/request` folder
-    """
-    print("Requesting participants to join the FL flow")
-    for participant, participants_app_path in proj_workspace.participants_app_path:
-        request_folder = participants_app_path / "request"
-        if request_folder.is_dir():
-            proj_request_folder = request_folder / proj_workspace.proj_name
-            proj_request_folder.mkdir(parents=True, exist_ok=True)
-            shutil.copy(proj_workspace.configs_path, proj_request_folder)
-            shutil.copy(proj_workspace.model_arch_path, proj_request_folder)
-            shutil.copy(proj_workspace.global_model_weight_path, proj_request_folder)
-            print(f"Request sent to {participant}")
-
-
-def run_fl_rounds():
-    """
-    Check if all the clients approved the project or not.
-    If so we do 
-        while round <= max_rounds:
-            d. let assume the round ix x,  place global_weights_round_x.pt inside all the clients
-            e. wait for the trained model of round x from the clients 
-            f. aggregate the trained model of round x
-    """
-    pass
 
 
 if __name__ == "__main__":
     client = Client.load()
-    
-    proj_workspace = launch_fl_project(client)
 
-    if proj_workspace is not None:
-        if all_clients_installed_app(proj_workspace):
-            request_fl_clients(proj_workspace)
+    # Step 1: Init the FL Aggregator App
+    init_fl_aggregator_app(client)
+
+    # Step 2: Launch the FL Project
+    # Iterates over the `launch` folder and creates a new FL project
+    # if the `fl_config.json` is found in the `launch` folder
+    launch_fl_project(client)
+
+    # Step 3: Advance the FL Projects.
+    # Iterates over the running folder and tries to advance the FL project
+    advance_fl_projects(client)
