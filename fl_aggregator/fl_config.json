@@ -1,0 +1,9 @@
+{
+  "project_name": "my_cool_fl_proj",
+  "participants": ["b@openmined.org", "c@openmined.org"],
+  "rounds": 3,
+  "model_arch": "model_arch.py",
+  "model_weight": "global_model_weight.pt",
+  "epoch": 10,
+  "learning_rate": 0.1
+}
