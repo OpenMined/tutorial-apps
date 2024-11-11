@@ -1,4 +1,5 @@
 from syftbox.lib import Client
+from syftbox.lib import SyftPermission
 from pathlib import Path
 import json
 import shutil
@@ -34,6 +35,11 @@ def init_fl_aggregator_app(client: Client) -> None:
     for folder in ["launch", "running", "done"]:
         fl_aggregator_folder = fl_aggregator / folder
         fl_aggregator_folder.mkdir(parents=True, exist_ok=True)
+
+    # TODO: Currently setting the permissions with public write
+    # change the permission model later
+    permission = SyftPermission.mine_with_public_write(client.email)
+    permission.ensure(fl_aggregator)
 
 
 def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
@@ -148,7 +154,7 @@ def get_network_participants(client: Client):
     users = []
     for entry in entries:
         if Path(datasite_path / entry).is_dir() and entry not in exclude_dir:
-            users.append(entry)
+            users.append(entry.name)
 
     return users
 
