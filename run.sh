@@ -1,9 +1,16 @@
 #!/bin/sh
 
-# this will create venv from python version defined in .python-version
-uv venv
+set -e
 
-uv pip install torch syftbox
+if [ ! -d .venv ]; then
+  uv venv
+fi
 
-# run app using python from venv
-uv run main.py
+. .venv/bin/activate
+
+uv pip install --upgrade syftbox
+
+echo "Running 'pretrained_model_local' with $(python3 --version) at '$(which python3)'"
+python3 main.py
+
+deactivate
