@@ -1,7 +1,16 @@
 #!/bin/sh
 
-uv venv
+set -e
 
-uv pip install -r requirements.txt
+if [ ! -d .venv ]; then
+  uv venv
+fi
 
-uv run main.py
+. .venv/bin/activate
+
+uv pip install --upgrade -r requirements.txt
+
+echo "Running 'dp_compute' with $(python3 --version) at '$(which python3)'"
+python3 main.py
+
+deactivate

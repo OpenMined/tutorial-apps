@@ -1,9 +1,16 @@
 #!/bin/sh
 
-echo "Running FL client app"
+set -e
 
-uv venv
+if [ ! -d .venv ]; then
+  uv venv
+fi
 
-uv pip install syftbox
+. .venv/bin/activate
 
-uv run main.py
+uv pip install --upgrade -r requirements.txt
+
+echo "Running 'fl_client' with $(python3 --version) at '$(which python3)'"
+python3 main.py
+
+deactivate
