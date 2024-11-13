@@ -8,7 +8,6 @@ from torch import nn
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-TEST_DATASET_PATH = Path("./mnist_dataset.pt")
 
 # Exception name to indicate the state cannot advance
 # as there are some pre-requisites that are not met
@@ -106,7 +105,7 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
             # TODO: create a custom syft permission for the clients in the `fl_clients` folder
             add_public_write_permission(client, participant_folder)
 
-        # copy the config file to the project's running folder
+        # Move the config file to the project's running folder
         shutil.move(fl_config_json_path, proj_folder)
 
         # move the model architecture to the project's running folder
@@ -119,6 +118,17 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
         model_weights_src = fl_aggregator / "launch" / fl_config["model_weight"]
         shutil.copy(model_weights_src, agg_weights_folder / "agg_model_round_0.pt")
         shutil.move(model_weights_src, proj_folder)
+
+        # Move the test dataset to the project's running folder
+        test_dataset_src = fl_aggregator / "launch" / fl_config["test_dataset"]
+        shutil.move(test_dataset_src, proj_folder)
+
+        # Copy the metrics dashboard files to the project's public folder
+        metrics_folder = Path(client.datasite_path) / "public" / "fl" / proj_name
+        metrics_folder.mkdir(parents=True, exist_ok=True)
+        shutil.copy("./dashboard/index.html", metrics_folder)
+        shutil.copy("./dashboard/metrics.json", metrics_folder)
+
 
 
         # TODO: create a state.json file to keep track of the project state
@@ -213,8 +223,7 @@ def check_proj_requests(client: Client, proj_folder: Path):
         raise StateNotReady(f"Project {proj_folder.name} is not approved by the clients {project_unapproved_clients}")
 
 
-def load_model_class(model_path: Path) -> type:
-    model_class_name = "FLModel"
+def load_model_class(model_path: Path, model_class_name: str) -> type:
     spec = importlib.util.spec_from_file_location(model_path.stem, model_path)
     model_arch = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(model_arch)
@@ -227,7 +236,7 @@ def aggregate_model(
 ) -> Path:
     print("Aggregating the trained models")
     print(f"Trained model paths: {trained_model_paths}")
-    global_model_class = load_model_class(proj_folder / fl_config["model_arch"])
+    global_model_class = load_model_class(proj_folder / fl_config["model_arch"], fl_config["model_class_name"])
     global_model: nn.Module = global_model_class()
     global_model_state_dict = global_model.state_dict()
 
@@ -300,22 +309,20 @@ def evaluate_agg_model(agg_model: nn.Module, dataset_path: Path) -> float:
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    accuracy = 100 * correct / total
 
-    # Return accuracy as a percentage
-    return accuracy /100
+    # Accuracy is returned as a percentage 
+    accuracy = correct / total
+
+    return accuracy
 
 def save_model_accuracy_metrics(client: Client, proj_folder: Path,current_round: int, accuracy: float):
     """
     Saves the model accuracy in the public folder of the datasite under project name
     """
     metrics_folder = Path(client.datasite_path) / "public" / proj_folder.name
-    # if the    metrics folder does not exist, create it and copy
-    #  index.html and metrics.json from current directory
+    
     if not metrics_folder.is_dir():
-        metrics_folder.mkdir(parents=True, exist_ok=True)
-        shutil.copy("index.html", metrics_folder)
-        shutil.copy("metrics.json", metrics_folder)
+        raise StateNotReady(f"Metrics folder not found for the project {proj_folder.name}")
     
     metrics_file = metrics_folder / "metrics.json"
     # Schema of json files
@@ -375,10 +382,11 @@ def advance_fl_round(client: Client, proj_folder: Path):
     agg_model_output_path = aggregate_model(fl_config, proj_folder, trained_model_paths, current_round)
 
     # Evaluate the aggregate model
-    model_class = load_model_class(proj_folder / "model_arch.py")
+    model_class = load_model_class(proj_folder / fl_config["model_arch"], fl_config["model_class_name"])
     model: nn.Module = model_class()
     model.load_state_dict(torch.load(str(agg_model_output_path),weights_only=True))
-    accuracy = evaluate_agg_model(model,TEST_DATASET_PATH)
+    test_dataset_path = proj_folder / fl_config["test_dataset"]
+    accuracy = evaluate_agg_model(model,test_dataset_path)
     print(f"Accuracy of the aggregated model for round {current_round}: {accuracy}")
     save_model_accuracy_metrics(client, proj_folder, current_round, accuracy)
 
