@@ -3,136 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Federated Learning Progress</title>
-    <!-- Load Chart.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <title>Training Results Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background: #f5f5f5;
+            background-color: #f5f5f5;
         }
+
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        #debug {
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            margin-bottom: 40px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .table-container {
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
             margin-top: 20px;
-            padding: 10px;
-            background: #f0f0f0;
-            border-radius: 5px;
+            background: white;
         }
-        .error {
-            color: red;
-            padding: 10px;
-            background: #fee2e2;
-            border-radius: 5px;
-            margin: 10px 0;
+
+        th {
+            background-color: #4a90e2;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .divider {
+            height: 2px;
+            background-color: #e0e0e0;
+            margin: 30px 0;
+        }
+
+        .section-title {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Federated Learning Progress</h1>
-        <canvas id="accuracyChart"></canvas>
-        <div id="debug"></div>
+        <h1>Training Results Dashboard</h1>
+        
+        <div class="section-title">Training Accuracy Metrics</div>
+        <div class="chart-container">
+            <canvas id="accuracyChart"></canvas>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title">Participants Information</div>
+        <div class="table-container">
+            <table id="participantsTable">
+                <thead>
+                    <!-- Headers will be dynamically inserted -->
+                </thead>
+                <tbody>
+                    <!-- Data will be dynamically inserted -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        function debugLog(message) {
-            console.log(message);
-            const debugDiv = document.getElementById('debug');
-            debugDiv.innerHTML += `<div>${message}</div>`;
-        }
-
-        async function loadDataAndCreateChart() {
+        // Function to load JSON data
+        async function loadJSON(file) {
             try {
-                debugLog('Fetching accuracy_metrics.json...');
-                const response = await fetch('accuracy_metrics.json');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const jsonData = await response.json();
-                debugLog('Data received: ' + JSON.stringify(jsonData));
-
-                // Process data
-                const processedData = Array.isArray(jsonData) 
-                    ? jsonData
-                    : Object.entries(jsonData).map(([round, value]) => ({
-                        round: parseInt(round.replace('round', '')),
-                        accuracy: parseFloat(value)
-                    }));
-
-                // Sort by round
-                processedData.sort((a, b) => a.round - b.round);
-
-                // Prepare data for Chart.js
-                const rounds = processedData.map(d => `Round ${d.round}`);
-                const accuracies = processedData.map(d => d.accuracy * 100);
-
-                debugLog('Processed data points: ' + processedData.length);
-
-                // Create chart
-                const ctx = document.getElementById('accuracyChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: rounds,
-                        datasets: [{
-                            label: 'Model Accuracy (%)',
-                            data: accuracies,
-                            borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1,
-                            fill: false
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Model Accuracy Over Training Rounds'
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 100,
-                                title: {
-                                    display: true,
-                                    text: 'Accuracy (%)'
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Training Round'
-                                }
-                            }
-                        }
-                    }
-                });
-
+                const response = await fetch(file);
+                return await response.json();
             } catch (error) {
-                debugLog('Error: ' + error.message);
-                document.getElementById('debug').innerHTML += `
-                    <div class="error">
-                        Error loading data: ${error.message}<br>
-                        Please ensure accuracy_metrics.json is in the same directory as this HTML file.
-                    </div>
-                `;
+                console.error(`Error loading ${file}:`, error);
+                return null;
             }
         }
 
-        // Start loading when page loads
-        window.addEventListener('load', loadDataAndCreateChart);
+        // Function to create the accuracy chart
+        function createAccuracyChart(data) {
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+            
+            // Process the data into rounds and accuracies
+            const rounds = data.map(item => `Round ${item.round}`);
+            const accuracies = data.map(item => item.accuracy);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: rounds,
+                    datasets: [{
+                        label: 'Accuracy',
+                        data: accuracies,
+                        borderColor: '#4a90e2',
+                        backgroundColor: 'rgba(74, 144, 226, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        yAxes: [{
+                            ticks: {
+                                beginAtZero: true,
+                                max: 1,
+                                callback: function(value) {
+                                    return (value * 100) + '%';
+                                }
+                            },
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Accuracy (%)'
+                            }
+                        }],
+                        xAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Training Rounds'
+                            }
+                        }]
+                    },
+                    tooltips: {
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                return 'Accuracy: ' + (tooltipItem.yLabel * 100).toFixed(1) + '%';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to create the participants table
+        function createParticipantsTable(data) {
+            const table = document.getElementById('participantsTable');
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+
+            // Create header row
+            if (data.length > 0) {
+                const headerRow = document.createElement('tr');
+                Object.keys(data[0]).forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+            }
+
+            // Create data rows
+            data.forEach(participant => {
+                const row = document.createElement('tr');
+                Object.entries(participant).forEach(([key, value]) => {
+                    const td = document.createElement('td');
+                    if (typeof value === 'boolean') {
+                        td.textContent = value ? '✅' : '';
+                    } else {
+                        td.textContent = value;
+                    }
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+        }
+
+        // Initialize the dashboard
+        async function initDashboard() {
+            const accuracyData = await loadJSON('accuracy_metrics.json');
+            const participantsData = await loadJSON('participants.json');
+
+            if (accuracyData) {
+                createAccuracyChart(accuracyData);
+            }
+
+            if (participantsData) {
+                createParticipantsTable(participantsData);
+            }
+        }
+
+        // Start the application
+        initDashboard();
     </script>
 </body>
 </html>
