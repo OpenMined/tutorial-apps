@@ -7,6 +7,9 @@ import shutil
 from torch import nn
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from utils import create_participant_json_file,update_json, ParticipantStateCols
+
+#TODO: add a syftignore to ignore mnist test dataset from syncing
 
 
 # Exception name to indicate the state cannot advance
@@ -127,7 +130,16 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
         metrics_folder = Path(client.datasite_path) / "public" / "fl" / proj_name
         metrics_folder.mkdir(parents=True, exist_ok=True)
         shutil.copy("./dashboard/index.html", metrics_folder)
-        shutil.copy("./dashboard/metrics.json", metrics_folder)
+
+        # Create a new participants.json file in the metrics folder
+        participant_metrics_file = metrics_folder / "participants.json"
+        create_participant_json_file(
+                                    participants,
+                                    fl_config["rounds"],
+                                    output_path=participant_metrics_file)
+        
+        # Copy the accuracy_metrics.json file to the project's metrics folder
+        shutil.copy("./dashboard/accuracy_metrics.json", metrics_folder)
 
 
 
@@ -177,6 +189,12 @@ def get_network_participants(client: Client):
 
     return users
 
+def get_participants_metric_file(client: Client, proj_folder: Path):
+    """
+    Returns the path to the participant metrics file
+    """
+    return Path(client.datasite_path) / "public" / "fl" / proj_folder.name / "participants.json"
+
 def check_fl_client_installed(client: Client, proj_folder: Path):
     """
     Checks if the client has installed the `fl_client` app
@@ -188,8 +206,15 @@ def check_fl_client_installed(client: Client, proj_folder: Path):
             raise StateNotReady(f"Client {fl_client.name} is not part of the network")
 
         fl_client_app_path = client.datasite_path.parent / fl_client.name / "app_pipelines" / "fl_client"
-        if not fl_client_app_path.is_dir():
+        fl_client_request_folder = fl_client_app_path / "request"
+        fl_client_running_folder = fl_client_app_path / "running"
+        if not fl_client_request_folder.is_dir() or not fl_client_running_folder.is_dir():
             raise StateNotReady(f"Client {fl_client.name} has not installed the `fl_client` app")
+        
+        # As they have installed, update the participants.json file with state
+        participants_metrics_file = get_participants_metric_file(client, proj_folder)
+        update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.FL_CLIENT_INSTALLED.value, True)
+
     
 def check_proj_requests(client: Client, proj_folder: Path):
     """
@@ -204,7 +229,11 @@ def check_proj_requests(client: Client, proj_folder: Path):
     for fl_client in fl_clients:
         fl_client_app_path = client.datasite_path.parent / fl_client.name / "app_pipelines" / "fl_client"
         fl_client_request_folder = fl_client_app_path / "request" / proj_folder.name
-        if not fl_client_request_folder.is_dir():
+        fl_client_running_folder = fl_client_app_path / "running" / proj_folder.name
+
+        # If the project is not present in the running folder and the request folder
+        # create a request folder for the client
+        if not fl_client_running_folder.is_dir() and not fl_client_request_folder.is_dir():
             # Create a request folder for the client
             fl_client_request_folder.mkdir(parents=True, exist_ok=True)
 
@@ -214,9 +243,13 @@ def check_proj_requests(client: Client, proj_folder: Path):
 
             print(f"Request sent to {fl_client.name} for the project {proj_folder.name}")
 
-        fl_client_running_folder = fl_client_app_path / "running" / proj_folder.name
+        
         if not fl_client_running_folder.is_dir():
             project_unapproved_clients.append(fl_client.name)
+        else:
+            # If the project is present in the running folder, update the participants.json file with state
+            participants_metrics_file = get_participants_metric_file(client, proj_folder)
+            update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.PROJECT_APPROVED.value, True)
 
     
     if project_unapproved_clients:
@@ -324,7 +357,7 @@ def save_model_accuracy_metrics(client: Client, proj_folder: Path,current_round:
     if not metrics_folder.is_dir():
         raise StateNotReady(f"Metrics folder not found for the project {proj_folder.name}")
     
-    metrics_file = metrics_folder / "metrics.json"
+    metrics_file = metrics_folder / "accuracy_metrics.json"
     # Schema of json files
     # [ {round: 1, accuracy: 0.98}, {round: 2, accuracy: 0.99} ]
     # Append the accuracy and round to the json file
@@ -373,6 +406,10 @@ def advance_fl_round(client: Client, proj_folder: Path):
         trained_model_paths.append(participant_round_folder)
         if not participant_round_folder.is_file():
             pending_clients.append(participant)
+        else:
+            # Update the participants.json file with the current round
+            participants_metrics_file = get_participants_metric_file(client, proj_folder)
+            update_json(participants_metrics_file, participant, ParticipantStateCols.ROUND.value, f'{current_round}/{total_rounds}')
     
     if pending_clients:
         raise StateNotReady(f"Waiting for trained model from the clients {pending_clients} for round {current_round}")

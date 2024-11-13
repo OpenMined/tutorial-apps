@@ -52,8 +52,8 @@
 
         async function loadDataAndCreateChart() {
             try {
-                debugLog('Fetching metrics.json...');
-                const response = await fetch('metrics.json');
+                debugLog('Fetching accuracy_metrics.json...');
+                const response = await fetch('accuracy_metrics.json');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -125,7 +125,7 @@
                 document.getElementById('debug').innerHTML += `
                     <div class="error">
                         Error loading data: ${error.message}<br>
-                        Please ensure metrics.json is in the same directory as this HTML file.
+                        Please ensure accuracy_metrics.json is in the same directory as this HTML file.
                     </div>
                 `;
             }
