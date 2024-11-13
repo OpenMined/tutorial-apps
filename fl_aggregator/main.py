@@ -208,7 +208,7 @@ def check_fl_client_installed(client: Client, proj_folder: Path):
         fl_client_app_path = client.datasite_path.parent / fl_client.name / "app_pipelines" / "fl_client"
         fl_client_request_folder = fl_client_app_path / "request"
         fl_client_running_folder = fl_client_app_path / "running"
-        if not fl_client_request_folder.is_dir() or not fl_client_running_folder.is_dir():
+        if not fl_client_request_folder.is_dir():
             raise StateNotReady(f"Client {fl_client.name} has not installed the `fl_client` app")
         
         # As they have installed, update the participants.json file with state

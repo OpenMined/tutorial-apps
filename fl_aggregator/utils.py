@@ -33,7 +33,7 @@ def create_participant_json_file(participants: list, total_rounds: int, output_p
 
 def update_json(data_path: Path, participant_email: str, column_name: str, column_val: str):
 
-    if column_name not in ParticipantStateCols.name:
+    if column_name not in ParticipantStateCols.__members__:
         return
     participant_history = read_json(data_path=data_path)
     for participant in participant_history:
