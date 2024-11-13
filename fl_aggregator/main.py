@@ -319,7 +319,7 @@ def save_model_accuracy_metrics(client: Client, proj_folder: Path,current_round:
     """
     Saves the model accuracy in the public folder of the datasite under project name
     """
-    metrics_folder = Path(client.datasite_path) / "public" / proj_folder.name
+    metrics_folder = Path(client.datasite_path) / "public" / "fl" / proj_folder.name
     
     if not metrics_folder.is_dir():
         raise StateNotReady(f"Metrics folder not found for the project {proj_folder.name}")
