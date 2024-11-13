@@ -213,7 +213,7 @@ def check_fl_client_installed(client: Client, proj_folder: Path):
         
         # As they have installed, update the participants.json file with state
         participants_metrics_file = get_participants_metric_file(client, proj_folder)
-        update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.FL_CLIENT_INSTALLED.value, True)
+        update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.FL_CLIENT_INSTALLED, True)
 
     
 def check_proj_requests(client: Client, proj_folder: Path):
@@ -249,7 +249,7 @@ def check_proj_requests(client: Client, proj_folder: Path):
         else:
             # If the project is present in the running folder, update the participants.json file with state
             participants_metrics_file = get_participants_metric_file(client, proj_folder)
-            update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.PROJECT_APPROVED.value, True)
+            update_json(participants_metrics_file, fl_client.name, ParticipantStateCols.PROJECT_APPROVED, True)
 
     
     if project_unapproved_clients:
@@ -409,7 +409,7 @@ def advance_fl_round(client: Client, proj_folder: Path):
         else:
             # Update the participants.json file with the current round
             participants_metrics_file = get_participants_metric_file(client, proj_folder)
-            update_json(participants_metrics_file, participant, ParticipantStateCols.ROUND.value, f'{current_round}/{total_rounds}')
+            update_json(participants_metrics_file, participant, ParticipantStateCols.ROUND, f'{current_round}/{total_rounds}')
     
     if pending_clients:
         raise StateNotReady(f"Waiting for trained model from the clients {pending_clients} for round {current_round}")

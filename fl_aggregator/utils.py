@@ -31,13 +31,13 @@ def create_participant_json_file(participants: list, total_rounds: int, output_p
 
     save_json(data=data, data_path=output_path)
 
-def update_json(data_path: Path, participant_email: str, column_name: str, column_val: str):
+def update_json(data_path: Path, participant_email: str, column_name: ParticipantStateCols, column_val: str):
 
-    if column_name not in ParticipantStateCols.__members__:
+    if column_name not in ParticipantStateCols:
         return
     participant_history = read_json(data_path=data_path)
     for participant in participant_history:
         if participant[ParticipantStateCols.EMAIL.value] == participant_email:
-            participant[column_name] = column_val
+            participant[column_name.value] = column_val
     
     save_json(participant_history, data_path)
