@@ -120,7 +120,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
     
     # Load the aggregated weights from the previous round
     agg_weights_file = agg_weights_folder / f"agg_model_round_{round_num - 1}.pt"
-    model.load_state_dict(torch.load(agg_weights_file))
+    model.load_state_dict(torch.load(agg_weights_file,weights_only=True))
 
     criterion = nn.CrossEntropyLoss()
     #TODO: Update learning rate from the fl_config
@@ -130,7 +130,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
     for dataset_path_file in dataset_path_files:
 
         # load the saved mnist subset
-        images, labels = torch.load(str(dataset_path_file))
+        images, labels = torch.load(str(dataset_path_file),weights_only=True)
 
         # create a tensordataset
         dataset = TensorDataset(images, labels)
