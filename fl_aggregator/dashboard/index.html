@@ -196,7 +196,7 @@
                 Object.entries(participant).forEach(([key, value]) => {
                     const td = document.createElement('td');
                     if (typeof value === 'boolean') {
-                        td.textContent = value ? '✅' : '';
+                        td.textContent = value ? '✅' : '-';
                     } else {
                         td.textContent = value;
                     }
