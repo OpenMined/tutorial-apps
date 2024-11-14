@@ -190,9 +190,9 @@ def get_participants_metric_file(client: Client, proj_folder: Path):
     return client.my_datasite / "public" / "fl" / proj_folder.name / "participants.json"
 
 
-def check_fl_client_installed(client: Client, proj_folder: Path):
+def create_fl_client_request(client: Client, proj_folder: Path):
     """
-    Checks if the client has installed the `fl_client` app
+    Create the request folder for the fl clients
     """
     fl_clients = get_all_directories(proj_folder / "fl_clients")
     network_participants = get_network_participants(client)
@@ -205,9 +205,13 @@ def check_fl_client_installed(client: Client, proj_folder: Path):
         )
         fl_client_request_folder = fl_client_app_path / "request"
         if not fl_client_request_folder.is_dir():
-            raise StateNotReady(
-                f"Client {fl_client.name} has not installed the `fl_client` app"
-            )
+            # Create a request folder for the client
+            fl_client_request_folder.mkdir(parents=True, exist_ok=True)
+
+            # Copy the fl_config.json, model_arch.py to the request folder
+            shutil.copy(proj_folder / "fl_config.json", fl_client_request_folder)
+            shutil.copy(proj_folder / "model_arch.py", fl_client_request_folder)
+            print(f"Sending request to {fl_client.name} for the project {proj_folder.name}")
 
         # As they have installed, update the participants.json file with state
         participants_metrics_file = get_participants_metric_file(client, proj_folder)
@@ -242,13 +246,6 @@ def check_proj_requests(client: Client, proj_folder: Path):
             not fl_client_running_folder.is_dir()
             and not fl_client_request_folder.is_dir()
         ):
-            # Create a request folder for the client
-            fl_client_request_folder.mkdir(parents=True, exist_ok=True)
-
-            # Copy the fl_config.json, model_arch.py and global_model_weights.pt to the request folder
-            shutil.copy(proj_folder / "fl_config.json", fl_client_request_folder)
-            shutil.copy(proj_folder / "model_arch.py", fl_client_request_folder)
-
             print(
                 f"Request sent to {fl_client.name} for the project {proj_folder.name}"
             )
@@ -496,7 +493,7 @@ def _advance_fl_project(client: Client, proj_folder: Path) -> None:
     """
 
     try:
-        check_fl_client_installed(client, proj_folder)
+        create_fl_client_request(client, proj_folder)
 
         check_proj_requests(client, proj_folder)
 
