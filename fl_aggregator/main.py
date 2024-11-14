@@ -213,6 +213,25 @@ def create_fl_client_request(client: Client, proj_folder: Path):
             shutil.copy(proj_folder / "model_arch.py", fl_client_request_folder)
             print(f"Sending request to {fl_client.name} for the project {proj_folder.name}")
 
+
+def check_fl_client_installed(client: Client, proj_folder: Path):
+    """
+    Checks if the client has installed the `fl_client` app
+    """
+    fl_clients = get_all_directories(proj_folder / "fl_clients")
+    network_participants = get_network_participants(client)
+    for fl_client in fl_clients:
+        if fl_client.name not in network_participants:
+            raise StateNotReady(f"Client {fl_client.name} is not part of the network")
+
+        fl_client_app_path = (
+                client.datasites / fl_client.name / "app_pipelines" / "fl_client"
+        )
+        fl_client_running_folder = fl_client_app_path / "running"
+        if not fl_client_running_folder.is_dir():
+            print(f"FL client {fl_client.name} has not installed the app yet")
+            return
+
         # As they have installed, update the participants.json file with state
         participants_metrics_file = get_participants_metric_file(client, proj_folder)
         update_json(
@@ -494,7 +513,9 @@ def _advance_fl_project(client: Client, proj_folder: Path) -> None:
 
     try:
         create_fl_client_request(client, proj_folder)
-
+        
+        check_fl_client_installed(client, proj_folder)
+        
         check_proj_requests(client, proj_folder)
 
         advance_fl_round(client, proj_folder)

@@ -6,6 +6,7 @@ class ParticipantStateCols(Enum):
     EMAIL = 'Email'
     FL_CLIENT_INSTALLED = 'Fl Client Installed'
     PROJECT_APPROVED = 'Project Approved'
+    HAS_DATA = 'Has Data'
     ROUND = 'Round (current/total)'
 
 def read_json(data_path: Path):
@@ -26,6 +27,7 @@ def create_participant_json_file(participants: list, total_rounds: int, output_p
             ParticipantStateCols.EMAIL.value               : participant,
             ParticipantStateCols.FL_CLIENT_INSTALLED.value : False,
             ParticipantStateCols.PROJECT_APPROVED.value    : False,
+            ParticipantStateCols.HAS_DATA.value            : False,
             ParticipantStateCols.ROUND.value               : f'0/{total_rounds}'
         })
 
