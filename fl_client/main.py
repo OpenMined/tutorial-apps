@@ -123,8 +123,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
     model.load_state_dict(torch.load(agg_weights_file, weights_only=True))
 
     criterion = nn.CrossEntropyLoss()
-    # TODO: Update learning rate from the fl_config
-    optimizer = optim.SGD(model.parameters(), lr=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=fl_config["learning_rate"])
 
     all_datasets = []
     for dataset_path_file in dataset_path_files:
@@ -152,9 +151,8 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
     log_file.write(start_msg)
     log_file.flush()
 
-    # TODO: Update epoch from the fl_config
     # training loop
-    for epoch in range(1000):
+    for epoch in range(fl_config["epoch"]):
         running_loss = 0
         for images, labels in train_loader:
             optimizer.zero_grad()
