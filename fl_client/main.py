@@ -39,6 +39,13 @@ def get_all_directories(path: Path) -> list:
     return [x for x in path.iterdir() if x.is_dir()]
 
 
+def get_app_private_data(client: Client, app_name: str) -> Path:
+    """
+    Returns the private data directory of the app
+    """
+    return client.workspace.data_dir / "private" / app_name
+
+
 def look_for_datasets(path: Path) -> list[Path]:
     # We return all the files in the path
     # with a particular regex pattern like mnist_label_*.pt
@@ -68,7 +75,7 @@ def init_fl_client_app(client: Client) -> None:
     add_public_write_permission(client, fl_client / "request")
 
     # We additionaly create a private folder for the client to place the datasets
-    private_folder_path = client.my_datasite / "private"
+    private_folder_path = get_app_private_data(client, "fl_client")
     private_folder_path.mkdir(parents=True, exist_ok=True)
 
 
@@ -108,7 +115,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
         fl_config: dict = json.load(f)
 
     # Retrieve all the mnist datasets from the private folder
-    dataset_path = client.my_datasite / "private"
+    dataset_path = get_app_private_data(client, "fl_client")
     dataset_path_files = look_for_datasets(dataset_path)
 
     if len(dataset_path_files) == 0:

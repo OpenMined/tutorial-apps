@@ -37,6 +37,13 @@ def get_all_directories(path: Path) -> list:
     return [x for x in path.iterdir() if x.is_dir()]
 
 
+def get_app_private_data(client: Client, app_name: str) -> Path:
+    """
+    Returns the private data directory of the app
+    """
+    return client.workspace.data_dir / "private" / app_name
+
+
 def init_fl_aggregator_app(client: Client) -> None:
     """
     Creates the `fl_aggregator` app in the `app_pipelines` folder
@@ -54,6 +61,14 @@ def init_fl_aggregator_app(client: Client) -> None:
     for folder in ["launch", "running", "done"]:
         fl_aggregator_folder = fl_aggregator / folder
         fl_aggregator_folder.mkdir(parents=True, exist_ok=True)
+
+    app_pvt_dir = get_app_private_data(client, "fl_aggregator")
+    app_pvt_dir.mkdir(parents=True, exist_ok=True)
+
+    # Move sample data directory exists in the private data folder of the app
+    app_sample_data_dir = client.workspace.apps / "fl_aggregator" / "sample_data"
+    if app_sample_data_dir.exists():
+        shutil.move(app_sample_data_dir, app_pvt_dir)
 
 
 def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
@@ -82,7 +97,7 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
     with open(fl_config_json_path, "r") as f:
         fl_config: dict = json.load(f)
 
-    proj_name = fl_config["project_name"]
+    proj_name = str(fl_config["project_name"])
     participants = fl_config["participants"]
 
     fl_aggregator = client.appdata("fl_aggregator")
@@ -120,10 +135,6 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
         shutil.copy(model_weights_src, agg_weights_folder / "agg_model_round_0.pt")
         shutil.move(model_weights_src, proj_folder)
 
-        # Move the test dataset to the project's running folder
-        test_dataset_src = fl_aggregator / "launch" / fl_config["test_dataset"]
-        shutil.move(test_dataset_src, proj_folder)
-
         # Copy the metrics dashboard files to the project's public folder
         metrics_folder = Path(client.my_datasite) / "public" / "fl" / proj_name
         metrics_folder.mkdir(parents=True, exist_ok=True)
@@ -137,6 +148,14 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
 
         # Copy the accuracy_metrics.json file to the project's metrics folder
         shutil.copy("./dashboard/accuracy_metrics.json", metrics_folder)
+
+        # Validate if private test data is present in the app's private data folder
+        private_data_dir = get_app_private_data(client, "fl_aggregator")
+        test_dataset_path = private_data_dir / str(fl_config["test_dataset"])
+        if not test_dataset_path.exists():
+            raise FileNotFoundError(
+                f"No test dataset found in {test_dataset_path.resolve()}"
+            )
 
         # TODO: create a state.json file to keep track of the project state
         # if needed while running the FL rounds
@@ -469,7 +488,8 @@ def advance_fl_round(client: Client, proj_folder: Path):
     )
     model: nn.Module = model_class()
     model.load_state_dict(torch.load(str(agg_model_output_path), weights_only=True))
-    test_dataset_path = proj_folder / fl_config["test_dataset"]
+    test_dataset_dir = client.workspace.data_dir / "private" / proj_folder.name
+    test_dataset_path = test_dataset_dir / fl_config["test_dataset"]
     accuracy = evaluate_agg_model(model, test_dataset_path)
     print(f"Accuracy of the aggregated model for round {current_round}: {accuracy}")
     save_model_accuracy_metrics(client, proj_folder, current_round, accuracy)
