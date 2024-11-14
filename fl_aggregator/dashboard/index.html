@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -79,8 +80,16 @@
             margin-bottom: 20px;
             font-size: 1.5em;
         }
+
+        .last-updated {
+            text-align: right;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Training Results Dashboard</h1>
@@ -89,12 +98,11 @@
         <div class="table-container">
             <table id="participantsTable">
                 <thead>
-                    <!-- Headers will be dynamically inserted -->
                 </thead>
                 <tbody>
-                    <!-- Data will be dynamically inserted -->
                 </tbody>
             </table>
+            <div class="last-updated" id="participantsLastUpdated"></div>
         </div>
 
         <div class="divider"></div>
@@ -102,15 +110,26 @@
         <div class="section-title">Training Accuracy Metrics</div>
         <div class="chart-container">
             <canvas id="accuracyChart"></canvas>
+            <div class="last-updated" id="accuracyLastUpdated"></div>
         </div>
+
+        <div class="divider"></div>
 
     </div>
 
     <script>
-        // Function to load JSON data
+        let accuracyChart = null;
+        let lastAccuracyData = null;
+        let lastParticipantsData = null;
+        const POLLING_INTERVAL = 5000; // Check every 5 seconds
+
+        // Function to load JSON data with cache busting
         async function loadJSON(file) {
             try {
-                const response = await fetch(file);
+                const response = await fetch(`${file}?t=${Date.now()}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error(`Error loading ${file}:`, error);
@@ -118,67 +137,83 @@
             }
         }
 
-        // Function to create the accuracy chart
-        function createAccuracyChart(data) {
+        // Function to compare two JSON objects
+        function hasDataChanged(oldData, newData) {
+            return JSON.stringify(oldData) !== JSON.stringify(newData);
+        }
+
+        // Function to create or update the accuracy chart
+        function updateAccuracyChart(data) {
             const ctx = document.getElementById('accuracyChart').getContext('2d');
-            
-            // Process the data into rounds and accuracies
             const rounds = data.map(item => `Round ${item.round}`);
             const accuracies = data.map(item => item.accuracy);
 
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: rounds,
-                    datasets: [{
-                        label: 'Accuracy',
-                        data: accuracies,
-                        borderColor: '#4a90e2',
-                        backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        yAxes: [{
-                            ticks: {
-                                beginAtZero: true,
-                                max: 1,
-                                callback: function(value) {
-                                    return (value * 100) + '%';
-                                }
-                            },
-                            scaleLabel: {
-                                display: true,
-                                labelString: 'Accuracy (%)'
-                            }
-                        }],
-                        xAxes: [{
-                            scaleLabel: {
-                                display: true,
-                                labelString: 'Training Rounds'
-                            }
+            if (accuracyChart) {
+                accuracyChart.data.labels = rounds;
+                accuracyChart.data.datasets[0].data = accuracies;
+                accuracyChart.update();
+            } else {
+                accuracyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: rounds,
+                        datasets: [{
+                            label: 'Accuracy',
+                            data: accuracies,
+                            borderColor: '#4a90e2',
+                            backgroundColor: 'rgba(74, 144, 226, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
                         }]
                     },
-                    tooltips: {
-                        callbacks: {
-                            label: function(tooltipItem, data) {
-                                return 'Accuracy: ' + (tooltipItem.yLabel * 100).toFixed(1) + '%';
+                    options: {
+                        responsive: true,
+                        scales: {
+                            yAxes: [{
+                                ticks: {
+                                    beginAtZero: true,
+                                    max: 1,
+                                    callback: function (value) {
+                                        return (value * 100) + '%';
+                                    }
+                                },
+                                scaleLabel: {
+                                    display: true,
+                                    labelString: 'Accuracy (%)'
+                                }
+                            }],
+                            xAxes: [{
+                                scaleLabel: {
+                                    display: true,
+                                    labelString: 'Training Rounds'
+                                }
+                            }]
+                        },
+                        tooltips: {
+                            callbacks: {
+                                label: function (tooltipItem, data) {
+                                    return 'Accuracy: ' + (tooltipItem.yLabel * 100).toFixed(1) + '%';
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
+
+            document.getElementById('accuracyLastUpdated').textContent =
+                `Last updated: ${new Date().toLocaleTimeString()}`;
         }
 
-        // Function to create the participants table
-        function createParticipantsTable(data) {
+        // Function to update the participants table
+        function updateParticipantsTable(data) {
             const table = document.getElementById('participantsTable');
             const thead = table.querySelector('thead');
             const tbody = table.querySelector('tbody');
+
+            // Clear existing content
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
 
             // Create header row
             if (data.length > 0) {
@@ -205,24 +240,37 @@
                 });
                 tbody.appendChild(row);
             });
+
+            document.getElementById('participantsLastUpdated').textContent =
+                `Last updated: ${new Date().toLocaleTimeString()}`;
         }
 
-        // Initialize the dashboard
+        // Function to check for updates
+        async function checkForUpdates() {
+            // Check accuracy metrics
+            const newAccuracyData = await loadJSON('accuracy_metrics.json');
+            if (newAccuracyData && (!lastAccuracyData || hasDataChanged(lastAccuracyData, newAccuracyData))) {
+                updateAccuracyChart(newAccuracyData);
+                lastAccuracyData = newAccuracyData;
+            }
+
+            // Check participants data
+            const newParticipantsData = await loadJSON('participants.json');
+            if (newParticipantsData && (!lastParticipantsData || hasDataChanged(lastParticipantsData, newParticipantsData))) {
+                updateParticipantsTable(newParticipantsData);
+                lastParticipantsData = newParticipantsData;
+            }
+        }
+
+        // Initialize the dashboard and start polling
         async function initDashboard() {
-            const accuracyData = await loadJSON('accuracy_metrics.json');
-            const participantsData = await loadJSON('participants.json');
-
-            if (accuracyData) {
-                createAccuracyChart(accuracyData);
-            }
-
-            if (participantsData) {
-                createParticipantsTable(participantsData);
-            }
+            await checkForUpdates();
+            setInterval(checkForUpdates, POLLING_INTERVAL);
         }
 
         // Start the application
         initDashboard();
     </script>
 </body>
+
 </html>
