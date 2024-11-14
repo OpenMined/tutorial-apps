@@ -203,7 +203,7 @@ def create_fl_client_request(client: Client, proj_folder: Path):
         fl_client_app_path = (
             client.datasites / fl_client.name / "app_pipelines" / "fl_client"
         )
-        fl_client_request_folder = fl_client_app_path / "request"
+        fl_client_request_folder = fl_client_app_path / "request" / proj_folder.name
         if not fl_client_request_folder.is_dir():
             # Create a request folder for the client
             fl_client_request_folder.mkdir(parents=True, exist_ok=True)
