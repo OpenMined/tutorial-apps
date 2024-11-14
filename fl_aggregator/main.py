@@ -62,13 +62,10 @@ def init_fl_aggregator_app(client: Client) -> None:
         fl_aggregator_folder = fl_aggregator / folder
         fl_aggregator_folder.mkdir(parents=True, exist_ok=True)
 
+    # Create the private data directory for the app
+    # This is where the private test data will be stored
     app_pvt_dir = get_app_private_data(client, "fl_aggregator")
     app_pvt_dir.mkdir(parents=True, exist_ok=True)
-
-    # Move sample data directory exists in the private data folder of the app
-    app_sample_data_dir = client.workspace.apps / "fl_aggregator" / "sample_data"
-    if app_sample_data_dir.exists():
-        shutil.move(app_sample_data_dir, app_pvt_dir)
 
 
 def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
@@ -149,14 +146,11 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
         # Copy the accuracy_metrics.json file to the project's metrics folder
         shutil.copy("./dashboard/accuracy_metrics.json", metrics_folder)
 
-        # Validate if private test data is present in the app's private data folder
-        private_data_dir = get_app_private_data(client, "fl_aggregator")
-        test_dataset_path = private_data_dir / str(fl_config["test_dataset"])
-        if not test_dataset_path.exists():
-            raise FileNotFoundError(
-                f"No test dataset found in {test_dataset_path.resolve()}"
-            )
-
+        # Create a private data directory for the project to store the test dataset
+        private_data_dir = get_app_private_data(client, "fl_aggregator") / str(
+            proj_name
+        )
+        private_data_dir.mkdir(parents=True, exist_ok=True)
         # TODO: create a state.json file to keep track of the project state
         # if needed while running the FL rounds
 
@@ -435,6 +429,14 @@ def advance_fl_round(client: Client, proj_folder: Path):
 
     participants = fl_config["participants"]
 
+    test_dataset_dir = client.workspace.data_dir / "private" / proj_folder.name
+    test_dataset_path = test_dataset_dir / fl_config["test_dataset"]
+
+    if not test_dataset_path.exists():
+        StateNotReady(
+            f"Test dataset not found, please add the test dataset to : {test_dataset_path.resolve()}"
+        )
+
     if current_round == 1:
         for participant in participants:
             client_app_path = (
@@ -488,8 +490,6 @@ def advance_fl_round(client: Client, proj_folder: Path):
     )
     model: nn.Module = model_class()
     model.load_state_dict(torch.load(str(agg_model_output_path), weights_only=True))
-    test_dataset_dir = client.workspace.data_dir / "private" / proj_folder.name
-    test_dataset_path = test_dataset_dir / fl_config["test_dataset"]
     accuracy = evaluate_agg_model(model, test_dataset_path)
     print(f"Accuracy of the aggregated model for round {current_round}: {accuracy}")
     save_model_accuracy_metrics(client, proj_folder, current_round, accuracy)
