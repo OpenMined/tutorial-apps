@@ -448,7 +448,7 @@ def advance_fl_round(client: Client, proj_folder: Path):
 
     participants = fl_config["participants"]
 
-    test_dataset_dir = client.workspace.data_dir / "private" / proj_folder.name
+    test_dataset_dir = get_app_private_data(client, "fl_aggregator") / str(proj_folder.name)
     test_dataset_path = test_dataset_dir / fl_config["test_dataset"]
 
     if not test_dataset_path.exists():
