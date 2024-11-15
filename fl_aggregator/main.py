@@ -243,8 +243,10 @@ def check_fl_client_installed(client: Client, proj_folder: Path):
         fl_client_app_path = (
                 client.datasites / fl_client.name / "api_data" / "fl_client"
         )
-        fl_client_running_folder = fl_client_app_path / "running"
-        if not fl_client_running_folder.is_dir():
+        fl_client_request_folder = fl_client_app_path / "request"
+        fl_client_request_syftperm = fl_client_request_folder / "_.syftperm"
+
+        if not fl_client_request_syftperm.is_file():
             print(f"FL client {fl_client.name} has not installed the app yet")
             return
 
