@@ -71,10 +71,6 @@ def init_fl_client_app(client: Client) -> None:
     for folder in ["request", "running", "done"]:
         fl_client_folder = fl_client / folder
         fl_client_folder.mkdir(parents=True, exist_ok=True)
-        # Create a dummy file in the running folder
-        if folder == "running":
-            dummy_file = fl_client_folder / "dummy"
-            dummy_file.touch()
 
     add_public_write_permission(client, fl_client / "request")
 
