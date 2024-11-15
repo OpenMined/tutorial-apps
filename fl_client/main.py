@@ -39,6 +39,13 @@ def get_all_directories(path: Path) -> list:
     return [x for x in path.iterdir() if x.is_dir()]
 
 
+def get_app_private_data(client: Client, app_name: str) -> Path:
+    """
+    Returns the private data directory of the app
+    """
+    return client.workspace.data_dir / "private" / app_name
+
+
 def look_for_datasets(path: Path) -> list[Path]:
     # We return all the files in the path
     # with a particular regex pattern like mnist_label_*.pt
@@ -50,25 +57,25 @@ def look_for_datasets(path: Path) -> list[Path]:
 
 def init_fl_client_app(client: Client) -> None:
     """
-    Creates the `fl_client` app in the `app_pipelines` folder
+    Creates the `fl_client` app in the `api_data` folder
     with the following structure:
     ```
-    app_pipelines
+    api_data
     └── fl_client
             └── request
             └── running
     ```
     """
-    fl_client = client.appdata("fl_client")
+    fl_client = client.api_data("fl_client")
 
-    for folder in ["request", "running"]:
+    for folder in ["request", "running", "done"]:
         fl_client_folder = fl_client / folder
         fl_client_folder.mkdir(parents=True, exist_ok=True)
 
     add_public_write_permission(client, fl_client / "request")
 
-    # We additionaly create a private folder for the client to place the datasets
-    private_folder_path = client.my_datasite / "private"
+    # We additionally create a private folder for the client to place the datasets
+    private_folder_path = get_app_private_data(client, "fl_client")
     private_folder_path.mkdir(parents=True, exist_ok=True)
 
 
@@ -108,7 +115,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
         fl_config: dict = json.load(f)
 
     # Retrieve all the mnist datasets from the private folder
-    dataset_path = client.my_datasite / "private"
+    dataset_path = get_app_private_data(client, "fl_client")
     dataset_path_files = look_for_datasets(dataset_path)
 
     if len(dataset_path_files) == 0:
@@ -190,7 +197,7 @@ def shift_project_to_done_folder(
     b. moves the agg weights and round weights to the done folder
     c. delete the project folder from the running folder
     """
-    done_folder = client.appdata("fl_client") / "done"
+    done_folder = client.api_data("fl_client") / "done"
     done_proj_folder = done_folder / proj_folder.name
     done_proj_folder.mkdir(parents=True, exist_ok=True)
 
@@ -241,7 +248,7 @@ def advance_fl_round(client: Client, proj_folder: Path) -> None:
     aggregator_email = fl_config["aggregator"]
     trained_model_file = round_weights_folder / f"trained_model_round_{round_num}.pt"
     fl_aggregator_app_path = (
-        client.datasites / aggregator_email / "app_pipelines" / "fl_aggregator"
+        client.datasites / aggregator_email / "api_data" / "fl_aggregator"
     )
     fl_aggregator_running_folder = fl_aggregator_app_path / "running" / proj_folder.name
     fl_aggregator_client_path = (
@@ -276,7 +283,7 @@ def advance_fl_projects(client: Client) -> None:
     """
     Iterates over the `running` folder and tries to advance the FL projects
     """
-    running_folder = client.appdata("fl_client") / "running"
+    running_folder = client.api_data("fl_client") / "running"
     for proj_folder in running_folder.iterdir():
         if proj_folder.is_dir():
             proj_name = proj_folder.name
