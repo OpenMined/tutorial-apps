@@ -91,10 +91,6 @@ def init_client_dirs(proj_folder: Path) -> None:
 
     add_public_write_permission(client, agg_weights_folder)
 
-    # Create a private folder for the client to place the datasets
-    pvt_data_folder = get_app_private_data(client, "fl_client") / proj_folder.name
-    pvt_data_folder.mkdir(parents=True, exist_ok=True)
-
 
 def load_model_class(model_path: Path) -> type:
     model_class_name = "FLModel"
@@ -119,7 +115,7 @@ def train_model(client: Client, proj_folder: Path, round_num: int) -> None:
         fl_config: dict = json.load(f)
 
     # Retrieve all the mnist datasets from the private folder
-    dataset_path = get_app_private_data(client, "fl_client") / proj_folder.name
+    dataset_path = get_app_private_data(client, "fl_client")
     dataset_path_files = look_for_datasets(dataset_path)
 
     if len(dataset_path_files) == 0:

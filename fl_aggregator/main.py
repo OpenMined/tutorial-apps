@@ -146,11 +146,6 @@ def initialize_fl_project(client: Client, fl_config_json_path: Path) -> None:
         # Copy the accuracy_metrics.json file to the project's metrics folder
         shutil.copy("./dashboard/accuracy_metrics.json", metrics_folder)
 
-        # Create a private data directory for the project to store the test dataset
-        private_data_dir = get_app_private_data(client, "fl_aggregator") / str(
-            proj_name
-        )
-        private_data_dir.mkdir(parents=True, exist_ok=True)
         # TODO: create a state.json file to keep track of the project state
         # if needed while running the FL rounds
 
@@ -450,7 +445,7 @@ def advance_fl_round(client: Client, proj_folder: Path):
 
     participants = fl_config["participants"]
 
-    test_dataset_dir = get_app_private_data(client, "fl_aggregator") / str(proj_folder.name)
+    test_dataset_dir = get_app_private_data(client, "fl_aggregator")
     test_dataset_path = test_dataset_dir / fl_config["test_dataset"]
 
     if not test_dataset_path.exists():
