@@ -57,16 +57,16 @@ def look_for_datasets(path: Path) -> list[Path]:
 
 def init_fl_client_app(client: Client) -> None:
     """
-    Creates the `fl_client` app in the `app_pipelines` folder
+    Creates the `fl_client` app in the `api_data` folder
     with the following structure:
     ```
-    app_pipelines
+    api_data
     └── fl_client
             └── request
             └── running
     ```
     """
-    fl_client = client.appdata("fl_client")
+    fl_client = client.api_data("fl_client")
 
     for folder in ["request", "running", "done"]:
         fl_client_folder = fl_client / folder
@@ -205,7 +205,7 @@ def shift_project_to_done_folder(
     b. moves the agg weights and round weights to the done folder
     c. delete the project folder from the running folder
     """
-    done_folder = client.appdata("fl_client") / "done"
+    done_folder = client.api_data("fl_client") / "done"
     done_proj_folder = done_folder / proj_folder.name
     done_proj_folder.mkdir(parents=True, exist_ok=True)
 
@@ -256,7 +256,7 @@ def advance_fl_round(client: Client, proj_folder: Path) -> None:
     aggregator_email = fl_config["aggregator"]
     trained_model_file = round_weights_folder / f"trained_model_round_{round_num}.pt"
     fl_aggregator_app_path = (
-        client.datasites / aggregator_email / "app_pipelines" / "fl_aggregator"
+        client.datasites / aggregator_email / "api_data" / "fl_aggregator"
     )
     fl_aggregator_running_folder = fl_aggregator_app_path / "running" / proj_folder.name
     fl_aggregator_client_path = (
@@ -291,7 +291,7 @@ def advance_fl_projects(client: Client) -> None:
     """
     Iterates over the `running` folder and tries to advance the FL projects
     """
-    running_folder = client.appdata("fl_client") / "running"
+    running_folder = client.api_data("fl_client") / "running"
     for proj_folder in running_folder.iterdir():
         if proj_folder.is_dir():
             proj_name = proj_folder.name
